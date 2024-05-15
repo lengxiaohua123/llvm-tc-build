@@ -68,8 +68,8 @@ jemalloc_build() {
         exit 0
     fi
     rm -rf "${JEMALLOC_BUILD_DIR}" && mkdir -p "${JEMALLOC_BUILD_DIR}"
-    export CC="gcc"
-    export CXX="g++"
+    export CC="ccache gcc"
+    export CXX="ccache g++"
     export CFLAGS="-march=armv8-a ${GCC_OPT_CFLAGS[*]}"
     export CXXFLAGS="$CFLAGS"
     export LDFLAGS="${GCC_OPT_LDFLAGS}"
