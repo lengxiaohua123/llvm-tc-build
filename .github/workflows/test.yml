@@ -53,7 +53,7 @@ jobs:
             pip3 install tensorflow
             dir_1=$(pwd)
             mkdir -p $dir_1/workspace
-            ./build_llvm.sh --all-opts --install-dir=$dir_1/workspace
+            ./build_llvm.sh --all-opts --use-jemalloc --shallow-clone --install-dir=$dir_1/workspace
             ls -al $dir_1/workspace
 
       - name: Get the output
