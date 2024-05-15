@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 source utils.sh
+
 # A custom Multi-Stage LLVM Toolchain builder.
 # PGO optimized clang for building Linux Kernels.
 set -e
@@ -16,6 +17,7 @@ LLVM_BUILD="${BUILDDIR}/llvm-build"
 LLVM_PROJECT="${LLVM_DIR}/llvm"
 
 LLVM_AVX_FLAGS="${NO_AVX_FLAGS}"
+
 
 for arg in "$@"; do
     case "${arg}" in
@@ -63,6 +65,7 @@ for arg in "$@"; do
     esac
 done
 
+AVX_OPT=0
 # Set AVX2 optimization flags
 if [[ ${AVX_OPT} -eq 1 ]]; then
     LLVM_AVX_FLAGS="${AVX_FLAGS}"
@@ -125,7 +128,7 @@ if [[ ${BOLT_OPT} -eq 1 ]]; then
                 exit 1
             )
             cd "${OUT}"
-
+:<<EOF
             echo "Training x86"
             cd "${KERNEL_DIR}"
             perf record --output "${BOLT_PROFILES}"/perf.data --event cycles:u --branch-filter any,u -- make distclean defconfig all -sj"$(getconf _NPROCESSORS_ONLN)" \
@@ -134,7 +137,7 @@ if [[ ${BOLT_OPT} -eq 1 ]]; then
                 exit 1
             )
             cd "${OUT}"
-
+EOF
             "${STAGE1}"/perf2bolt "${STAGE3}/${CLANG_SUFFIX}" \
                 -p "${BOLT_PROFILES}/perf.data" \
                 -o "${BOLT_PROFILES}/${CLANG_SUFFIX}.fdata" || (
@@ -186,7 +189,7 @@ if [[ ${BOLT_OPT} -eq 1 ]]; then
                 exit 1
             )
             cd "${OUT}"
-
+:<<eof
             echo "Training x86"
             cd "${KERNEL_DIR}"
             make distclean defconfig all -sj"$(getconf _NPROCESSORS_ONLN)" \
@@ -195,7 +198,7 @@ if [[ ${BOLT_OPT} -eq 1 ]]; then
                 exit 1
             )
             cd "${OUT}"
-
+eof
             cd "${BOLT_PROFILES}"
             echo "Merging .fdata files..."
             "${STAGE1}"/merge-fdata -q ./*.fdata 2>merge-fdata.log 1>combined.fdata
@@ -235,13 +238,13 @@ if [[ -d ${LLVM_DIR} ]]; then
     echo "Existing llvm source found. Fetching new changes"
     cd "${LLVM_DIR}"
     if [[ ${SHALLOW_CLONE} -eq 1 ]]; then
-        llvm_fetch "fetch" "--depth=1"
+        llvm_fetch "fetch" "--depth=1" "-b  llvmorg-18.1.5"
         git reset --hard FETCH_HEAD
         git clean -dfx
     else
         is_shallow=$(git rev-parse --is-shallow-repository 2>/dev/null)
         if [ "$is_shallow" = "true" ]; then
-            llvm_fetch "fetch" "--depth=1"
+            llvm_fetch "fetch" "--depth=1" "-b  llvmorg-18.1.5"
             git reset --hard FETCH_HEAD
             git clean -dfx
         else
@@ -252,9 +255,9 @@ if [[ -d ${LLVM_DIR} ]]; then
 else
     echo "Cloning llvm project repo"
     if [[ ${SHALLOW_CLONE} -eq 1 ]]; then
-        llvm_fetch "clone" "--depth=1"
+        llvm_fetch "clone" "--depth=1" "-b  llvmorg-18.1.5"
     else
-        llvm_fetch "clone"
+        llvm_fetch "clone" "-b  llvmorg-18.1.5"
     fi
 fi
 
@@ -291,7 +294,6 @@ wget "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+
 tar -xf "inlining-Oz-chromium.tar.gz"
 rm -rf "inlining-Oz-chromium.tar.gz"
 
-
 echo "Patching LLVM"
 # Patches
 if [[ -d "${BUILDDIR}/patches/llvm" ]]; then
@@ -325,7 +327,7 @@ else
     LINKER_DIR="${LLVM_BIN_DIR}"
 fi
 
-OPT_FLAGS="-march=native -mtune=native ${BARE_AVX_FLAGS} ${CLANG_OPT_CFLAGS[*]}"
+OPT_FLAGS="-march=armv8-a -mtune=native ${BARE_AVX_FLAGS} ${CLANG_OPT_CFLAGS[*]}"
 OPT_FLAGS_LD="${CLANG_OPT_LDFLAGS} -fuse-ld=${LINKER_DIR}/${LINKER}"
 
 if [[ ${USE_JEMALLOC} -eq 1 ]]; then
@@ -346,7 +348,7 @@ fi
 
 export TF_CPP_MIN_LOG_LEVEL=3
 cmake -G Ninja -Wno-dev --log-level=NOTICE \
-    -DLLVM_TARGETS_TO_BUILD="X86" \
+    -DLLVM_TARGETS_TO_BUILD="AArch64" \
     -DLLVM_ENABLE_PROJECTS="${STAGE1_PROJS}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCLANG_ENABLE_ARCMT=OFF \
@@ -369,8 +371,8 @@ cmake -G Ninja -Wno-dev --log-level=NOTICE \
     -DLLVM_ENABLE_WARNINGS=OFF \
     -DLLVM_ENABLE_LTO=Thin \
     -DTENSORFLOW_AOT_PATH="$(python3 -c "import tensorflow; import os; print(os.path.dirname(tensorflow.__file__))")" \
-    -DLLVM_RAEVICT_MODEL_PATH="${BUILDDIR}/mlgo-models/x86/regalloc/model" \
-    -DLLVM_INLINER_MODEL_PATH="${BUILDDIR}/mlgo-models/x86/inline/model" \
+    -DLLVM_RAEVICT_MODEL_PATH="${BUILDDIR}/mlgo-models/arm64/regalloc/model" \
+    -DLLVM_INLINER_MODEL_PATH="${BUILDDIR}/mlgo-models/arm64/inline/model" \
     -DCMAKE_C_COMPILER_LAUNCHER=ccache \
     -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
     -DCMAKE_C_COMPILER="${LLVM_BIN_DIR}"/clang \
@@ -416,6 +418,7 @@ if [[ -d ${OUT} ]]; then
 else
     mkdir "${OUT}"
 fi
+
 cd "${OUT}"
 STOCK_PATH=${PATH}
 MODDED_PATH="${STAGE1}:${PATH}"
@@ -430,7 +433,7 @@ else
     LINKER_DIR="${STAGE1}"
 fi
 
-OPT_FLAGS="-march=x86-64 ${LLVM_AVX_FLAGS} ${CLANG_OPT_CFLAGS[*]} -mllvm -regalloc-enable-advisor=release"
+OPT_FLAGS="-march=armv8-a ${LLVM_AVX_FLAGS} ${CLANG_OPT_CFLAGS[*]} -mllvm -regalloc-enable-advisor=release"
 OPT_FLAGS_LD="${CLANG_OPT_LDFLAGS} -Wl,-mllvm,-regalloc-enable-advisor=release -fuse-ld=${LINKER_DIR}/${LINKER}"
 
 if [[ ${USE_JEMALLOC} -eq 1 ]]; then
@@ -457,7 +460,7 @@ fi
 cmake -G Ninja -Wno-dev --log-level=ERROR \
     -DCLANG_VENDOR="Neutron" \
     -DLLD_VENDOR="Neutron" \
-    -DLLVM_TARGETS_TO_BUILD='AArch64;ARM;X86' \
+    -DLLVM_TARGETS_TO_BUILD='AArch64' \
     -DCMAKE_BUILD_TYPE=Release \
     -DLLVM_ENABLE_WARNINGS=OFF \
     -DLLVM_ENABLE_PROJECTS='clang;lld' \
@@ -558,10 +561,11 @@ KMAKEFLAGS=("LLVM=1"
     "HOSTCXX=${STAGE2}/clang++"
     "HOSTAR=${STAGE2}/llvm-ar"
     "HOSTLD=${STAGE2}/ld.lld")
-
+:<<EOF
 echo "Training x86"
-time make distclean defconfig all -sj"$(getconf _NPROCESSORS_ONLN)" "${KMAKEFLAGS[@]}" || exit ${?}
-
+time make distclean defconfig all -sj"$(getconf _NPROCESSORS_ONLN)" ARCH=arm64  KCFLAGS="-mllvm -regalloc-enable-advisor=release" KLDFLAGS="-mllvm -regalloc-enable-advisor=release" \
+    "${KMAKEFLAGS[@]}" || exit ${?}
+EOF
 echo "Training arm64"
 time make distclean defconfig all -sj"$(getconf _NPROCESSORS_ONLN)" ARCH=arm64  KCFLAGS="-mllvm -regalloc-enable-advisor=release" KLDFLAGS="-mllvm -regalloc-enable-advisor=release" \
     "${KMAKEFLAGS[@]}" || exit ${?}
@@ -580,7 +584,7 @@ echo "Stage 3 Build: Start"
 export PATH="${MODDED_PATH}"
 export LD_LIBRARY_PATH="${STAGE1}/../lib"
 
-OPT_FLAGS="-march=x86-64 ${LLVM_AVX_FLAGS} ${CLANG_OPT_CFLAGS[*]} -mllvm -regalloc-enable-advisor=release"
+OPT_FLAGS="-march=armv8-a ${LLVM_AVX_FLAGS} ${CLANG_OPT_CFLAGS[*]} -mllvm -regalloc-enable-advisor=release"
 if [[ ${POLLY_OPT} -eq 1 ]]; then
     OPT_FLAGS="${OPT_FLAGS} -fopenmp ${POLLY_PASS_FLAGS[*]}"
     for flag in "${POLLY_PASS_FLAGS[@]}"; do
@@ -616,11 +620,12 @@ if [[ -d ${OUT} ]]; then
 else
     mkdir "${OUT}"
 fi
+
 cd "${OUT}"
 cmake -G Ninja -Wno-dev --log-level=ERROR \
     -DCLANG_VENDOR="Neutron" \
     -DLLD_VENDOR="Neutron" \
-    -DLLVM_TARGETS_TO_BUILD='AArch64;ARM;X86' \
+    -DLLVM_TARGETS_TO_BUILD='AArch64' \
     -DCMAKE_BUILD_TYPE=Release \
     -DLLVM_ENABLE_WARNINGS=OFF \
     -DLLVM_ENABLE_PROJECTS='clang;lld;compiler-rt;polly;openmp' \

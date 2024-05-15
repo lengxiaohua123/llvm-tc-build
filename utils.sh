@@ -120,8 +120,13 @@ binutils_fetch() {
 ######################
 
 # AVX2 OPT
+:<<EOF
 export NO_AVX_FLAGS="-mtune=generic"
 export BARE_AVX_FLAGS="-mavx -mavx2 -mfma -msse3 -mssse3 -msse4.1 -msse4.2 -mf16c -mprefer-vector-width=128"
+export AVX_FLAGS="-mtune=haswell ${BARE_AVX_FLAGS}"
+EOF
+export NO_AVX_FLAGS="-mtune=generic"
+export BARE_AVX_FLAGS="-mprefer-vector-width=128"
 export AVX_FLAGS="-mtune=haswell ${BARE_AVX_FLAGS}"
 
 # Polly
