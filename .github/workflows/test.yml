@@ -51,6 +51,10 @@ jobs:
                            u-boot-tools python zstd clang
             pip3 install Cython
             pip3 install tensorflow
+            dir_1=$(pwd)
+            mkdir -p $dir_1/workspace
+            ./build_llvm.sh --all-opts --install-dir=$dir_1/workspace
+            ls -al $dir_1/workspace
 
       - name: Get the output
         # Echo the `uname` output parameter from the `runcmd` step
