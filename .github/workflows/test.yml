@@ -56,6 +56,8 @@ jobs:
             pip3 install tensorflow
             dir_1=$(pwd)
             mkdir -p $dir_1/workspace
+            sed -i '1068s/nr == 4/nr == 8/g' /usr/local/lib/python3.10/dist-packages/tensorflow/include/tsl/framework/convolution/eigen_spatial_convolutions-inl.h
+            sed -n '1068p' /usr/local/lib/python3.10/dist-packages/tensorflow/include/tsl/framework/convolution/eigen_spatial_convolutions-inl.h
             ./build_llvm.sh --all-opts --use-jemalloc --shallow-clone --install-dir=$dir_1/workspace
             ls -al $dir_1/workspace
 
