@@ -7,7 +7,7 @@ on:
         required: true
         default: false
         type: boolean
-
+        
 jobs:
   build:
     permissions:
@@ -19,14 +19,16 @@ jobs:
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
       CCACHE_HARDLINK: "true"
+      
+    strategy:
+      matrix:
+        include:
+          - arch: aarch64
+            distro: ubuntu22.04
+            
     steps:
     - name: Check out
       uses: actions/checkout@v4.1.1
-      
-    - name: Set machine
-      with:
-          arch: aarch64
-          distro: ubuntu22.04
           
     - name: Read the configuration
       run: |
