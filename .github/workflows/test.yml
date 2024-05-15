@@ -1,4 +1,4 @@
-name: 🏗️ BUILD LLVM
+name: run qemu
 on:
   workflow_dispatch:
     inputs:
@@ -30,6 +30,7 @@ jobs:
           run: |
             uname -a
             echo ::set-output name=uname::$(uname -a)
+            ls -al
 
       - name: Get the output
         # Echo the `uname` output parameter from the `runcmd` step
